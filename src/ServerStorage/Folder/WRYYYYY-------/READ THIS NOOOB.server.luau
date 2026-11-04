@@ -1,0 +1,4 @@
+--This model only contains exportable Animations since you cannot share animations in Roblox yet.
+--Im not going to explain you how to export and use them so search for a YT video.
+--Im not the owner of any of this animations, im just making a copilation.
+--TY For using this model :>
