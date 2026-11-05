@@ -1007,7 +1007,14 @@ function RerollService.init()
 		local allowed = RoleService.canManage(player)
 			or (key ~= "Title" and (not other or (cosmetic and RoleService.canSetCosmetics(player))))
 		-- Height (D.HEIGHT; user, 2026-11-02) and Bux (user, 2026-11-03: not Managers): the owners only (D.OWNER_IDS), self or others.
-		local ownerOnly = key == "Height" or key == "Bux"
+		-- Investors (a role's selfHeight; user, 2026-11-04): their OWN Height, clamped to that range.
+		local lo, hi = RoleService.selfHeight(player)
+		local selfHeight = key == "Height" and not other and lo ~= nil and hi ~= nil and not RoleService.isOwner(player)
+		if selfHeight then
+			local h = tonumber(value)
+			value = if h and h == h then tostring(math.clamp(h, lo :: number, hi :: number)) else nil
+		end
+		local ownerOnly = (key == "Height" and not selfHeight) or key == "Bux"
 		if not allowed or (key == "Style" and not RoleService.canGiveStyle(player, value)) or (ownerOnly and not RoleService.isOwner(player)) then
 			result:FireClient(player, "Dev", key, nil)
 			return

@@ -1593,7 +1593,7 @@ function MenuController.init()
 
 	-- Settings page (user, 2026-10-29): FOV slider + TOGGLE RUN + MUSIC VOLUME (2026-11-01). Saved by the server (SettingsService); what
 	-- gets applied is the Player attributes it echoes (SetFov -> CameraFov.setBase, SetToggleRun -> RunController).
-	-- Scrolls: four rows (FOV, run, music, title) are taller than the page.
+	-- Scrolls: five rows (FOV, run, music, height, title) are taller than the page.
 	local settingsPage = new("ScrollingFrame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
@@ -1705,11 +1705,31 @@ function MenuController.init()
 	player:GetAttributeChangedSignal("SetToggleRun"):Connect(loadRun)
 	loadRun()
 
+	-- Height (user, 2026-11-04): OFF = normal height instead of your set one (SetUseHeight, HeightService).
+	-- A style that sets your height (its `height`) locks it: the button reads STYLE and does nothing.
+	local heightRow = settingRow(372, "HEIGHT", "Use your set height. OFF = normal height. Locked when your style sets your height.")
+	local heightButton = button("ON", UDim2.fromOffset(150, 56), UDim2.fromOffset(rowW - 168, 22), heightRow, true)
+	local function heightLocked(): boolean
+		return Paths.shared("MoveSchema").ofModel(player).height ~= nil
+	end
+	local function loadHeight()
+		heightButton.Text = if heightLocked() then "STYLE" elseif player:GetAttribute("SetUseHeight") == false then "OFF" else "ON"
+	end
+	heightButton.Activated:Connect(function()
+		if not heightLocked() then
+			SettingsRemote:FireServer("UseHeight", player:GetAttribute("SetUseHeight") == false)
+		end
+	end)
+	for _, attr in { "SetUseHeight", "Style" } do
+		player:GetAttributeChangedSignal(attr):Connect(loadHeight)
+	end
+	loadHeight()
+
 	-- TITLE (user, 2026-11-01: "select which role you want to have above your head"): one chip per title
 	-- your roles give ("OwnedTitles", RoleService) + OFF (hides it for everyone; you keep it, and what it
 	-- gives, like freecam: SetHideTitle). Only shown when you have a title. The pick is saved
 	-- (SettingsService "Title") and RoleService puts it on your nametag.
-	local titleRow = box({ Position = UDim2.fromOffset(EDGE + 20, 372), Size = UDim2.fromOffset(rowW, 100), BackgroundColor3 = ROW }, settingsPage)
+	local titleRow = box({ Position = UDim2.fromOffset(EDGE + 20, 488), Size = UDim2.fromOffset(rowW, 100), BackgroundColor3 = ROW }, settingsPage)
 	do
 		local l = text({ Text = "TITLE", FontFace = HEAD_FONT, TextSize = 30, TextStrokeTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left, Position = UDim2.fromOffset(18, 12), Size = UDim2.fromOffset(320, 36) }, titleRow)
 		new("UIStroke", { Color = BLACK, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, l)
@@ -1837,12 +1857,13 @@ function MenuController.init()
 			answerTo[key] = label
 			Net.get(Net.Names.DevSet):FireServer(key, value, targetId)
 		end
-		-- One input row: `key` goes to the server, `current(target)` fills the grey placeholder.
-		local function row(key: string, label: string, current: (Player) -> string)
+		-- One input row: `key` goes to the server, `current(target)` fills the grey placeholder. Returns the row
+		-- and its label.
+		local function row(key: string, label: string, current: (Player) -> string): (Frame, TextLabel)
 			local r = box({ Position = UDim2.fromOffset(16, y), Size = UDim2.new(1, -38, 0, 40), BackgroundColor3 = ROW }, scroll)
 			y += 46
 			stroke(r, 0.9)
-			text({ Text = string.upper(label), TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, Position = UDim2.fromOffset(12, 0), Size = UDim2.new(0, 130, 1, 0) }, r)
+			local title = text({ Text = string.upper(label), TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, Position = UDim2.fromOffset(12, 0), Size = UDim2.new(0, 130, 1, 0) }, r)
 			local input = devInput(r, 146, 220)
 			local function placeholder()
 				input.PlaceholderText = if target then current(target) else ""
@@ -1863,6 +1884,7 @@ function MenuController.init()
 					submit()
 				end
 			end)
+			return r, title
 		end
 		local targetConn = player.AttributeChanged:Connect(refreshPlaceholders)
 
@@ -2042,10 +2064,30 @@ function MenuController.init()
 			end)
 		end
 		-- Height (owner only, user 2026-11-02; D.HEIGHT): a body scale, 1 = normal. The server clamps and gates it.
+		-- Investors (a role's selfHeight; user, 2026-11-04) get it too, for themselves, inside their range. Shown
+		-- only while they hold such a role (roles arrive after the Panel is built, and can change).
 		if isOwner then
 			row("Height", `Height {D.HEIGHT.min}-{D.HEIGHT.max}`, function(p)
 				return tostring(p:GetAttribute("Height") or 1)
 			end)
+		else
+			local heightRow, heightLabel = row("Height", "Height", function(p)
+				return tostring(p:GetAttribute("Height") or 1)
+			end)
+			local function syncHeightRow()
+				local range: { number }? = nil
+				local held = player:GetAttribute("Roles")
+				for _, r in if typeof(held) == "string" then string.split(held, ",") else {} do
+					local def = Paths.data("Roles").roles[r]
+					range = range or (def and def.selfHeight)
+				end
+				heightRow.Visible = range ~= nil
+				if range then
+					heightLabel.Text = `HEIGHT {range[1]}-{range[2]}`
+				end
+			end
+			player:GetAttributeChangedSignal("Roles"):Connect(syncHeightRow)
+			syncHeightRow()
 		end
 
 		-- Furniture (user, 2026-11-01): type to search by name, set how many, click one to give it to the

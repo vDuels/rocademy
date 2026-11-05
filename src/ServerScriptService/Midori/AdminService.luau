@@ -10,6 +10,7 @@
 --   ,freeze / ,unfreeze <player>   anchor / unanchor their root (Staff and up)
 --   ,apt <player>            into their apartment, "me" = yours (Staff and up; ApartmentService)
 --   ,m <message>             banner to everyone in this server, text-filtered (owners only)
+--   ,prompt <player> <id>    Roblox's buy prompt for dev product <id> on their screen (owners only)
 --   ,soda flood              D.SODA.floodCount cans spill out in front of you (Staff and up; SodaService.flood)
 --   ,hypercharge             toggles the HyperchargeVFX test aura on you (Staff and up)
 -- The nick is saved (PlayerData.Nick) and shown by NametagController through the "Nick" attribute.
@@ -166,6 +167,15 @@ local function run(player: Player, message: string)
 	end
 	local other = target ~= player
 
+	if command == "prompt" then
+		-- Owners only (everyone in Studio; user, 2026-11-04): Roblox's buy prompt for dev product <id> on their
+		-- screen. What buying it grants is that product's PlayerData.onProduct handler (none = just the Robux).
+		local id = tonumber(extra or "")
+		if (RunService:IsStudio() or RoleService.isOwner(player)) and id and id == math.floor(id) and id > 0 then
+			game:GetService("MarketplaceService"):PromptProductPurchase(target, id)
+		end
+		return
+	end
 	if (command == "nick" or command == "unick") and not canChangeNick(player, target) then
 		return -- locked by someone ranked above you
 	end

@@ -154,6 +154,18 @@ function RoleService.isDev(player: Player): boolean
 	return RunService:IsStudio() or any(player, "dev")
 end
 
+-- The range `player` may set their own height in (a role's selfHeight; several = the widest), else nil.
+function RoleService.selfHeight(player: Player): (number?, number?)
+	local lo: number?, hi: number? = nil, nil
+	for _, r in RoleService.roles(player) do
+		local range = Roles.roles[r].selfHeight
+		if range then
+			lo, hi = math.min(lo or math.huge, range[1]), math.max(hi or -math.huge, range[2])
+		end
+	end
+	return lo, hi
+end
+
 -- The title ids `player`'s roles give, highest role first.
 function RoleService.titles(player: Player): { string }
 	local out = {}

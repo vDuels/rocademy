@@ -2,11 +2,13 @@
 -- Height (D.HEIGHT, user 2026-11-02): owner-set only (RerollService DevSet "Height"), saved as data.Height.
 -- Replicates as the Player's and character's "Height" attribute; Shared/Height turns it into combat stats.
 -- The body: torso, limbs and root scale (the model and head don't), max HP follows.
+-- A player can switch their set height off (Settings "UseHeight"); a style with `height` overrides both.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Paths = require(ReplicatedStorage:WaitForChild("Midori"):WaitForChild("Paths"))
 local Height = Paths.shared("Height")
+local MoveSchema = Paths.shared("MoveSchema")
 
 local HeightService = {}
 
@@ -90,35 +92,62 @@ function HeightService.set(player: Player, data: any, value: string): number?
 	end
 	h = math.round(Height.clamp(h) * 100) / 100
 	data.Height = h
-	player:SetAttribute("Height", h)
+	player:SetAttribute("Height", h) -- refresh follows (init)
+	return h
+end
+
+-- The height `character` wears (user, 2026-11-04): its style's `height` if the style sets one (no opting
+-- out), else the owner-set height unless the player turned it off (Settings "UseHeight" -> "SetUseHeight").
+function HeightService.effective(player: Player, character: Model): number
+	local forced = MoveSchema.ofModel(character).height
+	if forced then
+		return forced
+	end
+	local h = player:GetAttribute("Height")
+	return if typeof(h) == "number" and player:GetAttribute("SetUseHeight") ~= false then Height.clamp(h) else 1
+end
+
+-- Re-applies the effective height to `player`'s character if it changed.
+function HeightService.refresh(player: Player)
 	local character = player.Character
-	if character and character:FindFirstChildOfClass("Humanoid") then
+	if not character or not character:FindFirstChildOfClass("Humanoid") then
+		return
+	end
+	local h = HeightService.effective(player, character)
+	local now = character:GetAttribute("HeightScale")
+	if h ~= (if typeof(now) == "number" then now else 1) then
 		HeightService.apply(character, h)
 	end
-	return h
 end
 
 function HeightService.init()
 	local PlayerData = Paths.server("PlayerData")
 	local function onCharacter(player: Player, character: Model)
-		local h = player:GetAttribute("Height")
-		if typeof(h) == "number" and h ~= 1 then
-			character:WaitForChild("Humanoid", 10)
-			if character.Parent and player.Character == character then
-				HeightService.apply(character, h)
+		character:GetAttributeChangedSignal("Style"):Connect(function() -- a style swap may force a height
+			if player.Character == character then
+				HeightService.refresh(player)
 			end
+		end)
+		character:WaitForChild("Humanoid", 10)
+		if character.Parent and player.Character == character then
+			HeightService.refresh(player)
 		end
 	end
 	PlayerData.onLoaded(function(player: Player, data: any)
 		player:SetAttribute("Height", data.Height)
-		if player.Character then
-			onCharacter(player, player.Character)
-		end
 	end)
 	local function onPlayer(player: Player)
 		player.CharacterAdded:Connect(function(character)
 			onCharacter(player, character)
 		end)
+		for _, attr in { "Height", "SetUseHeight" } do
+			player:GetAttributeChangedSignal(attr):Connect(function()
+				HeightService.refresh(player)
+			end)
+		end
+		if player.Character then
+			task.spawn(onCharacter, player, player.Character)
+		end
 	end
 	Players.PlayerAdded:Connect(onPlayer)
 	for _, player in Players:GetPlayers() do

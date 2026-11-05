@@ -47,6 +47,14 @@ local Titles: { [string]: Title } = {
 		shift = true,
 		shiftSpeed = 0.5,
 	},
+	Investor = {
+		text = "Investor",
+		from = Color3.fromRGB(255, 255, 255), -- white (user, 2026-11-04)
+		to = Color3.fromRGB(140, 140, 140), -- grey
+		icon = "rbxassetid://0",
+		shift = true,
+		shiftSpeed = 0.5,
+	},
 	Manager = {
 		text = "Manager",
 		from = Color3.fromRGB(255, 30, 40), -- red

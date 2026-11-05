@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Paths = require(ReplicatedStorage:WaitForChild("Midori"):WaitForChild("Paths"))
 local D = Paths.data("Defaults")
 
-local SCHEMA_VERSION = 11
+local SCHEMA_VERSION = 12
 local PURCHASE_ID_CACHE_SIZE = 100
 
 local TEMPLATE = {
@@ -183,6 +183,13 @@ local migrations: { [number]: (data: any) -> () } = {
 					it.x, it.z = it.x * 2, it.z * 2
 				end
 			end
+		end
+	end,
+	-- v12 (2026-11-04): "Investor" joined Roles.order at 6, below Staff. NickLockRank is an order index, so
+	-- locks from Staff up (6+, the owner's #order + 1 included) move up one to keep meaning the same rank.
+	[12] = function(data)
+		if typeof(data.NickLockRank) == "number" and data.NickLockRank >= 6 then
+			data.NickLockRank += 1
 		end
 	end,
 }

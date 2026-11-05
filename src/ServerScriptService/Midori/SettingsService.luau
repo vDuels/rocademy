@@ -5,6 +5,8 @@
 --   "SetToggleRun" (bool)                          -> RunController: Shift toggles running instead of hold
 --   "SetMusic" (number, 0..100 %)                  -> MusicController: OST + DJ booth volume
 --   "SetHideTitle" (bool)                          -> NametagController: your title isn't drawn (you keep it)
+--   "SetUseHeight" (bool, default true)            -> HeightService: off = normal height instead of the set one
+--                                                     (a style's forced height ignores it)
 --   Title (a Data/Titles id)                       -> RoleService.title: which of your roles' titles shows
 --                                                     (one you don't own is ignored there); seen as "Title"
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,7 +31,7 @@ local function clean(key: any, value: any): any
 		return if n and n == n then math.clamp(math.round(n), 0, 100) else nil
 	elseif key == "Title" then
 		return if typeof(value) == "string" and #value <= 40 and Paths.data("Titles")[value] ~= nil then value else nil
-	elseif key == "ToggleRun" or key == "HideTitle" then
+	elseif key == "ToggleRun" or key == "HideTitle" or key == "UseHeight" then
 		return if typeof(value) == "boolean" then value else nil
 	end
 	return nil
@@ -40,6 +42,7 @@ local function publish(player: Player, settings: any)
 	player:SetAttribute("SetToggleRun", settings.ToggleRun == true)
 	player:SetAttribute("SetMusic", clean("Music", settings.Music) or 100)
 	player:SetAttribute("SetHideTitle", settings.HideTitle == true)
+	player:SetAttribute("SetUseHeight", settings.UseHeight ~= false)
 end
 
 function SettingsService.init()

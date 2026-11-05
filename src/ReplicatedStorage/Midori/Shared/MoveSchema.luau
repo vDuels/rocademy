@@ -184,6 +184,9 @@ export type Style = {
 	m1Chain: { string },
 	comboEndDelay: number, -- M1 lockout after the last chain hit's endlag
 	guardMax: number, -- guard health for fighters using this style (default D.GUARD_MAX)
+	-- Body scale (D.HEIGHT) this style forces on its user, over their set height; the Settings toggle can't
+	-- turn it off (HeightService.effective; user, 2026-11-04). nil = the player's own height.
+	height: number?,
 	perks: { string }, -- style perks, always on (ids in Data/Perks)
 	m2: string?,
 	r: string?,
@@ -532,6 +535,8 @@ function MoveSchema.resolveStyle(raw: any): Style
 	need(raw.equip == nil or type(raw.equip) == "string", `{raw.name}.equip must be an animation path`)
 	need(raw.holster == nil or typeof(raw.holster) == "CFrame", `{raw.name}.holster must be a CFrame`)
 	need(raw.weapon == nil or (type(raw.weapon) == "string" and Paths.Assets.Weapons:FindFirstChild(raw.weapon) ~= nil), `{raw.name}.weapon: no model {tostring(raw.weapon)} in Assets/Weapons`)
+	need(raw.height == nil or (type(raw.height) == "number" and raw.height >= D.HEIGHT.min and raw.height <= D.HEIGHT.max),
+		`{raw.name}.height must be a number from {D.HEIGHT.min} to {D.HEIGHT.max}`)
 	local perks = raw.perks or {}
 	need(type(perks) == "table", `{raw.name}.perks must be a list of perk ids`)
 	for _, id in ipairs(perks) do
@@ -550,6 +555,7 @@ function MoveSchema.resolveStyle(raw: any): Style
 		m1Chain = table.freeze(table.clone(raw.m1Chain)),
 		comboEndDelay = num(raw, "comboEndDelay", raw.name, D.COMBO_END_DELAY),
 		guardMax = num(raw, "guardMax", raw.name, D.GUARD_MAX),
+		height = raw.height,
 		perks = table.freeze(table.clone(perks)),
 		m2 = raw.m2,
 		r = raw.r,
