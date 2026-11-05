@@ -261,11 +261,12 @@ end
 
 -- One roll of an appearance slot for `gender`: a rarity pick that never repeats `exclude` (the current
 -- id), where the slot's `none` chance is a share of the non-Mythic/Legendary part (skipped when you
--- already have nothing).
-function RerollService.rollSlot(slot: string, gender: string?, random: Random, exclude: any?): any?
+-- already have nothing). `pool` = Appearance.eligible(slot, gender) when the caller already has it (auto
+-- rolls run this up to D.AUTO_ROLL_MAX times in one request: build the list once, not every roll).
+function RerollService.rollSlot(slot: string, gender: string?, random: Random, exclude: any?, pool: { any }?): any?
 	local def = Appearance.slots[slot]
 	-- Mythic/Legendary keep their flat per-reroll chance; `none` only shares the rest.
-	local item = Rarity.pick(Appearance.eligible(slot, gender), random, exclude, if exclude ~= 0 then def.none else nil)
+	local item = Rarity.pick(pool or Appearance.eligible(slot, gender), random, exclude, if exclude ~= 0 then def.none else nil)
 	if item == Rarity.NONE then
 		return 0
 	end
@@ -485,8 +486,9 @@ local function reroll(player: Player, tab: any, slot: any, target: any): (any, n
 		end
 		current = L.Appearance[slot]
 		pool = Appearance.eligible(slot, L.Gender)
+		local eligible = pool
 		rollOnce = function()
-			return RerollService.rollSlot(slot, L.Gender, rng, current)
+			return RerollService.rollSlot(slot, L.Gender, rng, current, eligible)
 		end
 	elseif tab == "Loadout" then
 		local s, traits = loadoutSlot(data, slot)
@@ -591,7 +593,7 @@ local function rerollMany(player: Player, slots: any, target: any): ({ [string]:
 		-- an auto roll leaves at least 1 reroll for every slot still to come
 		landed += 1
 		local id, rolls = rollUntil(function()
-			return RerollService.rollSlot(slot, L.Gender, rng, current)
+			return RerollService.rollSlot(slot, L.Gender, rng, current, pool)
 		end, pool, target, budget - spent - (#slots - landed))
 		if id == nil then
 			return nil
@@ -1004,9 +1006,6 @@ function RerollService.init()
 		local cosmetic = typeof(key) == "string" and (Appearance.slots[key] ~= nil or CLOTHES[key] ~= nil or key == "Gender" or key == "Reset")
 		local allowed = RoleService.canManage(player)
 			or (key ~= "Title" and (not other or (cosmetic and RoleService.canSetCosmetics(player))))
-		if key == "Style" then -- TEMP STYLEDEBUG
-			warn("[STYLEDEBUG] DevSet Style:", player.Name, player.UserId, "value =", value, "target =", targetId, "allowed =", allowed, "isOwner =", RoleService.isOwner(player), "canGiveStyle =", RoleService.canGiveStyle(player, value))
-		end
 		-- Height (D.HEIGHT; user, 2026-11-02) and Bux (user, 2026-11-03: not Managers): the owners only (D.OWNER_IDS), self or others.
 		local ownerOnly = key == "Height" or key == "Bux"
 		if not allowed or (key == "Style" and not RoleService.canGiveStyle(player, value)) or (ownerOnly and not RoleService.isOwner(player)) then
@@ -1025,9 +1024,6 @@ function RerollService.init()
 			Paths.server("GiveLog").log(player, target, if key == "Furniture" and id then `furniture {id} x{n}`
 				elseif key == "Bux" then `Bux set to {value}`
 				else `{key} = {value}`)
-		end
-		if key == "Style" then -- TEMP STYLEDEBUG
-			warn("[STYLEDEBUG] DevSet Style result:", out, "target found =", target ~= nil, "now Style attr =", target and target:GetAttribute("Style"))
 		end
 		result:FireClient(player, "Dev", key, out)
 	end)

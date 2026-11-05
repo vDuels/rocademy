@@ -101,7 +101,8 @@ local function create(player: Player): (boolean, string)
 					return nil -- taken: try another code
 				end
 				claimed = true
-				return { access = access, owner = player.UserId, created = os.time() }
+				-- `server` lets that server check a code it only knows from TeleportData (publishCode).
+				return { access = access, owner = player.UserId, created = os.time(), server = serverId }
 			end)
 			if claimed then
 				codes():SetAsync("ps_" .. serverId, code)
@@ -153,10 +154,13 @@ local function publishCode(player: Player?)
 		return
 	end
 	local code: string? = nil
+	local trusted = false -- the code came from our own ps_ record, not from the client
 	local ok, saved = pcall(codes().GetAsync, codes(), "ps_" .. game.PrivateServerId)
 	if ok and typeof(saved) == "string" then
 		code = saved
+		trusted = true
 	elseif player then
+		-- TeleportData passes through the client and can be edited, so this code is checked below.
 		local data = player:GetJoinData().TeleportData
 		code = if typeof(data) == "table" then PrivateServerService.normalize(data.code) else nil
 	end
@@ -164,8 +168,13 @@ local function publishCode(player: Player?)
 		return
 	end
 	local entryOk, entry = pcall(codes().GetAsync, codes(), "code_" .. code)
+	local valid = entryOk and typeof(entry) == "table"
+	-- An unconfirmed code must name THIS server (entries made before `server` was saved can't be checked).
+	if not trusted and not (valid and entry.server == game.PrivateServerId) then
+		return
+	end
 	workspace:SetAttribute("ServerCode", code)
-	if entryOk and typeof(entry) == "table" then
+	if valid then
 		workspace:SetAttribute("ServerOwner", entry.owner)
 	end
 end

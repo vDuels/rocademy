@@ -87,16 +87,43 @@ local function sync(f: any, reason: string)
 	end
 end
 
+-- How far a player's pose may lead the server's copy of their root (D.POSE_*): all of POSE_MAX_OFFSET while
+-- they move fast on purpose, else what running covers in their lag.
+local function poseLimit(f: any, now: number): number
+	local s = f.state
+	local m = f.move
+	if s == State.Rush or s == State.Barrage or s == State.Dash or s == State.DashEndlag
+		or (m ~= nil and (m.step ~= nil or m.blink ~= nil or m.rush ~= nil))
+		or now - (f.dashPressAt or -math.huge) <= D.DASH_DURATION + D.DASH_ENDLAG + D.LAGCOMP_MAX -- dash attacks carry the dash
+	then
+		return D.POSE_MAX_OFFSET
+	end
+	local lag = math.clamp(f.player:GetNetworkPing() + D.LAGCOMP_INTERP, 0, D.LAGCOMP_MAX)
+	return math.min(D.POSE_MAX_OFFSET, D.RUN_SPEED * D.POSE_SPEED_MARGIN * lag + D.POSE_WALK_SLACK)
+end
+
 -- Where a fighter's hitbox goes: a player's own recent client pose (see D.POSE_*), else the
 -- server's root. Second value: true when it came from the client.
+-- The pose's rotation is rebuilt upright from its facing (a client can't send a skewed / NaN rotation),
+-- and a pose further out than poseLimit is pulled back to it; past POSE_MAX_OFFSET it isn't used at all.
 function CombatService.attackOrigin(f: any, now: number): (CFrame, boolean)
 	local pose = f.clientPose
-	if f.player and pose and now - f.clientPoseAt <= D.POSE_MAX_AGE
-		and (pose.Position - f.root.Position).Magnitude <= D.POSE_MAX_OFFSET
-	then
-		return pose, true
+	if not (f.player and pose and now - f.clientPoseAt <= D.POSE_MAX_AGE) then
+		return f.root.CFrame, false
 	end
-	return f.root.CFrame, false
+	local rootPos = f.root.Position
+	local offset = pose.Position - rootPos
+	local distance = offset.Magnitude
+	if distance > D.POSE_MAX_OFFSET then
+		return f.root.CFrame, false
+	end
+	local limit = poseLimit(f, now)
+	local pos = if distance > limit then rootPos + offset.Unit * limit else pose.Position
+	local look = CombatMath.flat(pose.LookVector)
+	if look == Vector3.zero then
+		return f.root.CFrame.Rotation + pos, true
+	end
+	return CFrame.lookAlong(pos, look), true
 end
 
 local function canAct(f: any, now: number): boolean

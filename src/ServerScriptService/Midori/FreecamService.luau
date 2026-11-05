@@ -36,7 +36,6 @@ local function sync(player: Player)
 	local role = player:GetAttribute("Role")
 	local want = (typeof(role) == "string" and role ~= "Player") or typeof(player:GetAttribute("Title")) == "string"
 	local have = ours(gui)
-	warn("[FREECAMDEBUG] sync", player.Name, "role =", role, "title =", player:GetAttribute("Title"), "want =", want, "have =", have ~= nil) -- TEMP
 	if want and not have then
 		local copy = TEMPLATE:Clone()
 		copy:SetAttribute(MARK, true)
@@ -61,7 +60,6 @@ local function onPlayer(player: Player)
 	-- Same test as Roblox's installer: these players already have Shift+P.
 	local ok, canManage = pcall(player.GetCanManageAsync, player)
 	builtIn[player] = RunService:IsStudio() or (ok and canManage == true)
-	warn("[FREECAMDEBUG] join", player.Name, "studio =", RunService:IsStudio(), "canManage =", ok, canManage, "-> uses Roblox's own copy =", builtIn[player]) -- TEMP
 	player:WaitForChild("PlayerGui")
 	for _, attr in { "Title", "Role" } do
 		player:GetAttributeChangedSignal(attr):Connect(function()

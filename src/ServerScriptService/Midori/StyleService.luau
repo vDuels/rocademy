@@ -69,7 +69,6 @@ function StyleService.select(player: Player, requested: string): boolean
 	end
 	player:SetAttribute("Style", name)
 	pending[player] = true
-	warn("[STYLEDEBUG] select ok:", player.Name, name, "(applies once Idle + out of combat mode)") -- TEMP
 	return true
 end
 
@@ -79,9 +78,6 @@ function StyleService.init()
 			-- Devs only: styles are rolled (RerollService), so a free chat pick would skip the gacha.
 			local requested = string.match(message, COMMAND)
 			local Roles = Paths.server("RoleService")
-			if requested then -- TEMP STYLEDEBUG
-				warn("[STYLEDEBUG] ,e:", player.Name, player.UserId, "requested =", requested, "isDev =", Roles.isDev(player), "isOwner =", Roles.isOwner(player), "canGiveStyle =", Roles.canGiveStyle(player, requested))
-			end
 			if requested and Roles.isDev(player) and Roles.canGiveStyle(player, requested) then
 				-- Save it like the P menu's Dev setter does, so a given (unob) style survives a rejoin.
 				local PlayerData = Paths.server("PlayerData")

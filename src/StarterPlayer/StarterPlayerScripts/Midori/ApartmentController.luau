@@ -364,7 +364,6 @@ function ApartmentController.init()
 			state.decor = a
 			ownedEvent:Fire()
 		elseif action == "Remove" and state.folder then
-			warn(`[APTDEBUG] client Remove {a}: had {if state.items[a] then state.items[a].item else "nothing"}`) -- TEMP (2026-10-31)
 			state.items[a] = nil -- the server took its model down (untrack)
 			changedEvent:Fire(a)
 		end
@@ -424,35 +423,6 @@ function ApartmentController.init()
 					local can = if motor and motor:IsA("Motor6D") then motor.Part1 else nil
 					if holder and can then
 						setProp(can, hidden[holder] == true)
-					end
-				end
-			end
-		end
-	end)
-
-	-- TEMP [APTTORSO] (2026-11-01, user: "in apartments my friend's torso disappeared"): every 3s inside an
-	-- apartment, what this client has for each other character in the same one. Remove once found.
-	task.spawn(function()
-		while true do
-			task.wait(3)
-			local mine = where(player.Character)
-			if mine ~= nil then
-				for _, p in Players:GetPlayers() do
-					local c = p.Character
-					if p ~= player and c and where(c) == mine then
-						local torso = c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso")
-						local parts, hiddenParts = 0, {}
-						for _, d in c:GetDescendants() do
-							if d:IsA("BasePart") then
-								parts += 1
-								if d.Transparency >= 1 or d.LocalTransparencyModifier >= 1 then
-									table.insert(hiddenParts, d.Name)
-								end
-							end
-						end
-						warn(`[APTTORSO] {p.Name}: torso={if torso then "yes" else "MISSING"}` ..
-							(if torso and torso:IsA("BasePart") then ` transp={torso.Transparency} ltm={torso.LocalTransparencyModifier} size={torso.Size} pos={torso.Position}` else "") ..
-							` parts={parts} hiddenMap={hidden[c]} invisible=[{table.concat(hiddenParts, ",")}] streamMode={c.ModelStreamingMode.Name}`)
 					end
 				end
 			end

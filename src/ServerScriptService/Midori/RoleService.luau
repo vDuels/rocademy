@@ -16,6 +16,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local DataStoreService = game:GetService("DataStoreService")
+local MessagingService = game:GetService("MessagingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Paths = require(ReplicatedStorage:WaitForChild("Midori"):WaitForChild("Paths"))
@@ -28,6 +29,11 @@ local NametagService = require(game:GetService("ServerScriptService"):WaitForChi
 
 local okStore, store = pcall(DataStoreService.GetDataStore, DataStoreService, "MidoriRoles")
 local saved: { [number]: any } = {} -- saved value (a list, or an old single name) of players in this server
+-- A role change is told to every server (audit, 2026-11-05: a Manager stripped while on another server kept
+-- their powers there until they left). ROLE_REFRESH is the backstop if a message is lost: every role holder
+-- online has their saved roles read again that often.
+local TOPIC = "MidoriRoles"
+local ROLE_REFRESH = 120
 
 local RoleService = {}
 
@@ -192,8 +198,17 @@ end
 -- After a Settings title pick (SettingsService) or the profile loading.
 RoleService.refresh = publish
 
-local function load(player: Player)
-	publish(player) -- the default until the saved roles arrive
+-- Takes `stored` (a saved value) as `player`'s roles, re-publishing only if that changes anything.
+local function adopt(player: Player, stored: any)
+	local before = table.concat(RoleService.roles(player), ",")
+	saved[player.UserId] = stored
+	if table.concat(RoleService.roles(player), ",") ~= before then
+		publish(player)
+	end
+end
+
+-- Reads `player`'s saved roles (join, and the ROLE_REFRESH backstop).
+local function reload(player: Player)
 	if not okStore then
 		return
 	end
@@ -203,9 +218,13 @@ local function load(player: Player)
 		return
 	end
 	if player.Parent == Players and (type(stored) == "string" or type(stored) == "table") then
-		saved[player.UserId] = stored
-		publish(player)
+		adopt(player, stored)
 	end
+end
+
+local function load(player: Player)
+	publish(player) -- the default until the saved roles arrive
+	reload(player)
 end
 
 -- A UserId (number or digits), else a username looked up on Roblox.
@@ -266,24 +285,39 @@ function RoleService.set(owner: Player, target: any, roleName: any): (boolean, s
 	if not okStore then
 		return false, "no DataStore (publish the place / enable API access)", nil
 	end
-	local okGet, stored = storedFor(userId)
-	if not okGet then
-		return false, `load failed: {stored}`, nil
-	end
-	if not boss and rank(RoleService.rolesOf(userId, stored)[1]) >= rank("Manager") then
-		return false, "only the owner changes a Manager", nil
-	end
-	local list = RoleService.toggle(stored, userId, role)
-	local ok, setErr = pcall(store.SetAsync, store, tostring(userId), list)
+	-- One read-modify-write (audit, 2026-11-05: GetAsync + SetAsync let two managers' changes overwrite each
+	-- other). The transform can run more than once; each run starts clean.
+	local refused: string? = nil
+	local list: { string }? = nil
+	local ok, setErr = pcall(store.UpdateAsync, store, tostring(userId), function(stored: any)
+		refused, list = nil, nil
+		if not boss and rank(RoleService.rolesOf(userId, stored)[1]) >= rank("Manager") then
+			refused = "only the owner changes a Manager"
+			return nil -- no write
+		end
+		list = RoleService.toggle(stored, userId, role)
+		return list
+	end)
 	if not ok then
 		return false, `save failed: {setErr}`, nil
 	end
-	local now = table.concat(RoleService.rolesOf(userId, list), ", ")
+	if refused or not list then
+		return false, refused or "save failed", nil
+	end
+	local sent: { string } = list :: any -- set by the transform's last (written) run
+	local now = table.concat(RoleService.rolesOf(userId, sent), ", ")
 	local online = Players:GetPlayerByUserId(userId)
 	if online then
-		saved[userId] = list
+		saved[userId] = sent
 		publish(online)
 	end
+	-- Every other server they may be in hears it now.
+	task.spawn(function()
+		local okSend, sendErr = pcall(MessagingService.PublishAsync, MessagingService, TOPIC, { userId = userId, roles = sent })
+		if not okSend then
+			warn(`[RoleService] couldn't tell other servers about {userId}'s roles (they catch up within {ROLE_REFRESH}s): {sendErr}`)
+		end
+	end)
 	Paths.server("GiveLog").log(owner, online or `offline user {userId}`, `role toggle {role}, roles now: {now}`)
 	return true, `{userId}: {now}` .. (if online then "" else " (offline: applies when they join)"), now
 end
@@ -394,6 +428,34 @@ function RoleService.init()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		saved[player.UserId] = nil
+	end)
+
+	-- Role changes made on other servers (RoleService.set publishes them).
+	task.spawn(function()
+		local ok, err = pcall(MessagingService.SubscribeAsync, MessagingService, TOPIC, function(message: any)
+			local payload = message.Data
+			if typeof(payload) ~= "table" or typeof(payload.userId) ~= "number" or typeof(payload.roles) ~= "table" then
+				return
+			end
+			local player = Players:GetPlayerByUserId(payload.userId)
+			if player then
+				adopt(player, payload.roles) -- rolesOf only keeps real role names
+			end
+		end)
+		if not ok then
+			warn(`[RoleService] couldn't subscribe to role changes (falling back to the {ROLE_REFRESH}s refresh): {err}`)
+		end
+	end)
+	-- Backstop for a lost message: re-read everyone online who holds a role (a revoked one included).
+	task.spawn(function()
+		while true do
+			task.wait(ROLE_REFRESH)
+			for _, player in Players:GetPlayers() do
+				if RoleService.role(player) ~= "Player" or saved[player.UserId] ~= nil then
+					task.spawn(reload, player)
+				end
+			end
+		end
 	end)
 
 	local result = Net.get(Net.Names.RoleResult)

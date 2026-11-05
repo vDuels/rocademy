@@ -109,11 +109,7 @@ local function travel(player: Player, pad: BasePart)
 	if typeof(to) ~= "string" or pad:GetAttribute("Apartment") == true then
 		return
 	end
-	local why = refusal(player, character, f, pad)
-	if why then
-		if not pad:GetAttribute("Walk") then -- walk-in pads would spam it
-			warn(`[TRAVELDEBUG] {player.Name} refused at {pad.Name}: {why}`) -- TEMP: reset bug
-		end
+	if refusal(player, character, f, pad) then
 		return
 	end
 	local now = os.clock()
@@ -137,10 +133,7 @@ local function travel(player: Player, pad: BasePart)
 		pcall(rider.RequestStreamAroundAsync, rider, cf.Position, 3)
 	end
 	task.wait(math.max(0, TRAVEL.fadeOut - (os.clock() - now)))
-	why = refusal(player, character, f, pad)
-	if why then
-		warn(`[TRAVELDEBUG] {player.Name} cancelled mid-fade at {pad.Name}: {why}`) -- TEMP: reset bug
-	else
+	if not refusal(player, character, f, pad) then
 		f.root.AssemblyLinearVelocity = Vector3.zero
 		character:PivotTo(cf)
 		TravelService.bring(f, cf)

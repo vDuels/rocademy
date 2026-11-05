@@ -97,6 +97,18 @@ function ChronoService.init()
 	end
 	ChronoSetup.start()
 	Chrono = ChronoSetup.chrono()
+	-- Chrono keeps whatever CFrame a client sends for its own character, and LagComp rewinds into that
+	-- history (cframeAt). Drop packets that stray from the server's real root (audit, 2026-11-05).
+	Chrono.ServerReceiver.RegisterMiddleMan("MidoriDrift", 100, function(_player: Player, entity: any, cframe: CFrame): boolean
+		local model = entity.model
+		local root = if typeof(model) ~= "Instance" then nil
+			elseif model:IsA("BasePart") then model
+			else model:FindFirstChild("HumanoidRootPart")
+		if not root or not root:IsA("BasePart") then
+			return false
+		end
+		return (cframe.Position - root.Position).Magnitude > D.CHRONO_MAX_DRIFT
+	end)
 	-- Chrono's client always reports its character's death, but we run REPLICATE_DEATHS = NONE, so
 	-- Chrono never listens and Roblox warns "invocation discarded". Drain it.
 	local deathRemote = ReplicatedStorage.Lib.Chrono.Shared.Remotes:FindFirstChild("Death")

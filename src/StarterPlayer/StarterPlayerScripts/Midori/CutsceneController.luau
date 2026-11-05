@@ -130,38 +130,6 @@ function CutsceneController.play(id: string, anchor: CFrame, actors: { [string]:
 			end
 		end
 	end
-	-- TEMP (user, 2026-10-29: "after prodigy cutscene I stay uncollidable to other players"): 2s after the
-	-- end, report anything off about OUR body (puppets have their own net in CutscenePuppet).
-	local mine = me
-	if mine and watching then
-		task.delay(math.max(0, startAt + def.duration + 2 - workspace:GetServerTimeNow()), function()
-			if mine.Parent == nil or mine:GetAttribute("Ragdolled") or mine:GetAttribute("Knocked") then
-				return
-			end
-			local odd = {}
-			for _, name in { "HumanoidRootPart", "Torso", "Head" } do
-				local p = mine:FindFirstChild(name)
-				if p and p:IsA("BasePart") then
-					if p.CollisionGroup ~= "MidoriCharacter" then
-						table.insert(odd, `{name} group {p.CollisionGroup}`)
-					end
-					if name ~= "HumanoidRootPart" and not p.CanCollide then
-						table.insert(odd, `{name} CanCollide off`)
-					end
-					if p.Anchored then
-						table.insert(odd, `{name} anchored`)
-					end
-				end
-			end
-			local hum = mine:FindFirstChildOfClass("Humanoid")
-			if hum and hum:GetState() == Enum.HumanoidStateType.Physics then
-				table.insert(odd, "humanoid stuck in Physics")
-			end
-			if #odd > 0 then
-				warn(`[CUTSCENEDEBUG] own body after {id}: {table.concat(odd, "; ")}`)
-			end
-		end)
-	end
 	if next(puppets) then
 		local drive: RBXScriptConnection
 		drive = RunService.RenderStepped:Connect(function()

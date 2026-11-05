@@ -12,8 +12,6 @@ local FeedbackController = Paths.client("FeedbackController")
 
 local player = Players.LocalPlayer
 
-task.spawn(Paths.client("CameraDebug").init) -- TEMP: mobile black-screen camera readout (devs on touch only)
-
 task.spawn(function()
 	local anims = {}
 	for _, inst in Paths.Assets:WaitForChild("Animations"):GetDescendants() do
@@ -31,7 +29,7 @@ Paths.client("ShieldController").init()
 task.spawn(Paths.client("ChatBarController").init) -- topbar chat box (no chat window / history); waits for PlayerGui
 Paths.client("HudController").init() -- top-left HUD: guard / HP / adrenaline + trait cards
 Paths.client("RemoteAnimator").init()
-Paths.shared("AnimDebug").start() -- TEMP: stuck-animation diagnostic (D.ANIM_DEBUG)
+Paths.shared("AnimDebug").start() -- stuck-animation diagnostic; does nothing unless D.ANIM_DEBUG
 Paths.client("Afterimage").init() -- ghost trail on afterimage rushes (Prodigy Reentry), everyone's
 Paths.client("BlinkLane").init() -- others' blink lanes (Dema M2); ours comes from CombatController
 Paths.client("HolsterController").init() -- style.holster weapon pose (Dema): put away / walking

@@ -930,9 +930,32 @@ function Tests.run(): string
 	test("attack pose: a player's fresh, nearby client pose places the hitbox; stale or far ones don't", function()
 		local root = { CFrame = CFrame.new(0, 0, 0), Position = Vector3.zero }
 		local near5 = CFrame.new(0, 0, -5)
-		local f = { player = true, root = root, clientPose = near5, clientPoseAt = 10 }
+		local PING = 0.05
+		local fakePlayer = { GetNetworkPing = function()
+			return PING
+		end }
+		local f: any = { player = fakePlayer, root = root, clientPose = near5, clientPoseAt = 10, state = State.Startup, dashPressAt = 0 }
 		local cf, fromClient = CombatService.attackOrigin(f, 10.05)
-		assert(fromClient and cf == near5, "fresh nearby pose ignored")
+		assert(fromClient and (cf.Position - near5.Position).Magnitude < 1e-4 and cf.LookVector:Dot(near5.LookVector) > 0.9999, "fresh nearby pose ignored")
+		-- Walking / running: a pose further out than running covers in the lag is pulled back to that.
+		local limit = D.RUN_SPEED * D.POSE_SPEED_MARGIN * math.clamp(PING + D.LAGCOMP_INTERP, 0, D.LAGCOMP_MAX) + D.POSE_WALK_SLACK
+		assert(limit < D.POSE_MAX_OFFSET - 1, "walking limit should be tighter than POSE_MAX_OFFSET")
+		f.clientPose = CFrame.new(0, 0, -(D.POSE_MAX_OFFSET - 0.5))
+		cf, fromClient = CombatService.attackOrigin(f, 10.05)
+		assert(fromClient and near(cf.Position.Magnitude, limit, 1e-3), "far walking pose not pulled back to " .. limit .. ", got " .. cf.Position.Magnitude)
+		-- Rushing (or just out of a dash): the whole POSE_MAX_OFFSET.
+		f.state = State.Rush
+		cf = CombatService.attackOrigin(f, 10.05)
+		assert(near(cf.Position.Magnitude, D.POSE_MAX_OFFSET - 0.5, 1e-3), "a rush pose should keep its full lead")
+		f.state, f.dashPressAt = State.Startup, 10
+		cf = CombatService.attackOrigin(f, 10.05)
+		assert(near(cf.Position.Magnitude, D.POSE_MAX_OFFSET - 0.5, 1e-3), "a dash attack pose should keep its full lead")
+		f.dashPressAt = 0
+		-- A junk rotation (NaN) falls back to the root's facing; the position still counts.
+		f.clientPose = CFrame.new(0, 0, -3, 0 / 0, 0, 0, 0, 0 / 0, 0, 0, 0, 0 / 0)
+		cf, fromClient = CombatService.attackOrigin(f, 10.05)
+		assert(fromClient and cf.LookVector == root.CFrame.LookVector and near(cf.Position.Z, -3, 1e-4), "NaN pose rotation not replaced")
+		f.clientPose = near5
 		_, fromClient = CombatService.attackOrigin(f, 10 + D.POSE_MAX_AGE + 0.01)
 		assert(not fromClient, "stale pose used")
 		f.clientPose = CFrame.new(0, 0, -(D.POSE_MAX_OFFSET + 1))

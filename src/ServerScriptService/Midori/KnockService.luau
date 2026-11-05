@@ -188,20 +188,6 @@ function KnockService.finishGrip(c: any, now: number)
 		k.model:SetAttribute("Gripped", nil)
 		Ragdoll.corpse(k) -- dies limp, not stiff (bug, 2026-11-02)
 		k.humanoid.Health = 0
-		-- TEMP [GRIPDEBUG]: the corpse's joints half a second later (stiff = motors back on / sockets off / no colliders).
-		task.delay(0.5, function()
-			local torso = k.model:FindFirstChild("Torso")
-			local motors, on, sockets, son = 0, 0, 0, 0
-			for _, d in if torso then torso:GetChildren() else {} do
-				if d:IsA("Motor6D") then motors += 1; on += if d.Enabled then 1 else 0 end
-				if d:IsA("BallSocketConstraint") then sockets += 1; son += if d.Enabled then 1 else 0 end
-			end
-			local arm = k.model:FindFirstChild("Right Arm")
-			local col = arm and arm:FindFirstChild("MidoriRagdollCollider")
-			warn("[GRIPDEBUG]", k.model.Name, "motors", motors, "enabled", on, "| sockets", sockets, "enabled", son,
-				"| arm collider", col ~= nil and (col :: BasePart).CanCollide, "welded", col ~= nil and col:FindFirstChildOfClass("Weld") ~= nil,
-				"| state", k.humanoid:GetState().Name, "| owner", arm and (arm :: BasePart):GetNetworkOwner(), "| height", k.model:GetAttribute("Height"))
-		end)
 		local sfx = Paths.Assets:FindFirstChild("Sfx")
 		local sound = sfx and sfx:FindFirstChild("Generic") and sfx.Generic:FindFirstChild("Grip")
 		if sound and sound:IsA("Sound") then

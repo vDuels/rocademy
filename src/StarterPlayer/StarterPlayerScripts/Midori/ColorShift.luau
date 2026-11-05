@@ -47,8 +47,13 @@ local function effects(): (ColorCorrectionEffect, DepthOfFieldEffect)
 		d.Enabled = false
 		d.Parent = Lighting
 		dof = d
-		RunService.Heartbeat:Connect(function()
-			if d.Enabled and dofOwner ~= token then
+		-- One watchdog per effect: once this effect is replaced it stops (was a new Heartbeat connection per
+		-- recreation that never disconnected).
+		local watchdog: RBXScriptConnection
+		watchdog = RunService.Heartbeat:Connect(function()
+			if dof ~= d then
+				watchdog:Disconnect()
+			elseif d.Enabled and dofOwner ~= token then
 				d.Enabled = false
 			end
 		end)

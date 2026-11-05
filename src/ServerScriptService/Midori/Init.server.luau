@@ -19,7 +19,7 @@ Paths.server("ChronoService").init() -- character replication for fighters in co
 StyleService.init()
 Paths.server("RoleService").init() -- owner-set roles (Dev access); needs the remotes
 Paths.server("WeaponService").init() -- style weapons (e.g. BanHammer), before fighters spawn
-Paths.shared("AnimDebug").start() -- TEMP: stuck-animation diagnostic (D.ANIM_DEBUG)
+Paths.shared("AnimDebug").start() -- stuck-animation diagnostic; does nothing unless D.ANIM_DEBUG
 Paths.server("RerollService").init() -- before PerkRollService: it hooks PlayerData loading
 Paths.server("AdminService").init() -- ,nick / ,bring / ,freeze; before PerkRollService: it hooks PlayerData loading
 Paths.server("HeightService").init() -- owner-set height (D.HEIGHT); before PerkRollService: it hooks PlayerData loading

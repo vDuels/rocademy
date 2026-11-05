@@ -21,22 +21,17 @@ local SWEEP_FOR = 30 -- s after the hand-back the safety net keeps waiting for t
 
 -- Safety net (user, 2026-10-29: stayed uncollidable to other players after the Prodigy cutscene): once the
 -- body isn't ragdolled / knocked / carried / gripped any more, none of it (but the ragdoll colliders) belongs
--- in NO_CHARACTERS on this screen. The restore below should already have done it; TEMP warn if it hadn't.
+-- in NO_CHARACTERS on this screen. The restore below should already have done it; this catches what it missed.
 local function sweep(real: Model)
 	task.spawn(function()
 		local stopAt = os.clock() + SWEEP_FOR
 		while os.clock() < stopAt and real.Parent do
 			task.wait(0.5)
 			if not (real:GetAttribute("Ragdolled") or real:GetAttribute("Knocked") or real:GetAttribute("Carried") or real:GetAttribute("Gripped")) then
-				local fixed = {}
 				for _, d in real:GetDescendants() do
 					if d:IsA("BasePart") and d.Name ~= COLLIDER and d.CollisionGroup == NO_CHARACTERS then
 						d.CollisionGroup = CHARACTER
-						table.insert(fixed, d.Name)
 					end
-				end
-				if #fixed > 0 then
-					warn(`[CUTSCENEDEBUG] {real.Name} was still in {NO_CHARACTERS} after the cutscene; fixed: {table.concat(fixed, ", ")}`) -- TEMP
 				end
 				return
 			end

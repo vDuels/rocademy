@@ -205,6 +205,9 @@ return table.freeze({
 	-- in NATIVE mode Roblox's own replication and Chrono's delayed CFrame both move remote characters,
 	-- so they get pulled between two spots. Off = plain Roblox replication; LagComp uses its own history.
 	CHRONO_ENABLED = false,
+	-- When on: a client's Chrono packet further than this from its character's real (server) root is dropped
+	-- (ChronoService), so lag comp never rewinds to a spot the client made up. Dashes / rushes lead by ~6-12.
+	CHRONO_MAX_DRIFT = 15,
 	-- When on, every living player runs on it.
 	-- Seconds per position update: 60/s (user, 2026-10-14; was 1/30). Not exactly 1/60: Chrono's
 	-- senders reset their timer to "now" on each send, so frames a hair under 1/60 would be skipped.
@@ -230,6 +233,12 @@ return table.freeze({
 	POSE_SEND_INTERVAL = 1 / 30,
 	POSE_MAX_AGE = 0.2,
 	POSE_MAX_OFFSET = 12,
+	-- POSE_MAX_OFFSET is for moving fast on purpose (dash, rush, barrage advance, step / blink windups, just out
+	-- of a dash). Otherwise a pose may lead the server's copy only as far as running could take you in your lag:
+	-- RUN_SPEED * POSE_SPEED_MARGIN * min(ping + LAGCOMP_INTERP, LAGCOMP_MAX) + POSE_WALK_SLACK (~7-9 studs);
+	-- a pose past that is pulled back to it (audit, 2026-11-05: 12 studs everywhere was free reach for exploiters).
+	POSE_SPEED_MARGIN = 1.4, -- covers short heights' move speed bonus (D.HEIGHT) and jitter
+	POSE_WALK_SLACK = 2,
 	DRAG_LEAD = 0.05,
 	DRAG_TAIL = 0.1,
 	RATE = table.freeze({
@@ -327,8 +336,9 @@ return table.freeze({
 		blast = { distance = 45, duration = 0.7, up = 45, spin = 14, ragdoll = 6, trailScale = 1.5, damage = 999 } },
 	-- Vfx.WindTrail size on strong ragdolls (move.strongRagdoll) and blinks (move.blink); ServerScriptService.Midori.WindTrail.
 	WIND_TRAIL_SCALE = 1.5,
-	-- TEMP (2026-10-28): stuck-animation diagnostic on server + client (Shared/AnimDebug). Turn off when done.
-	ANIM_DEBUG = true,
+	-- Stuck-animation diagnostic on server + client (Shared/AnimDebug, 2026-10-28). Off in live games (audit,
+	-- 2026-11-05: it scanned every fighter's tracks 4x a second); set true again to hunt stuck animations.
+	ANIM_DEBUG = false,
 	-- Blink moves (Dema M2): land this many studs short of a wall in the lane (CombatMath.blinkTarget).
 	BLINK_WALL_GAP = 2,
 	-- The blink's teleport is drawn as a wind-trail streak flying start -> landing over this long (WindTrail.streak).

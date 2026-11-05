@@ -472,8 +472,8 @@ local function ownerRagdoll(model: Model, seed: number, spin: number, launch: Ve
 			if humanoid.Health > 0 then
 				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 			end
-			-- TEMP RAGDOLLDEBUG (user, 2026-11-03: "unragdolling sometimes still leaves you on the floor").
-			-- Still down 0.5s after getting up and not ragdolled again: log why, then stand up once more.
+			-- Safety net (user, 2026-11-03: "unragdolling sometimes still leaves you on the floor"): still down
+			-- 0.5s after getting up and not ragdolled again: stand up once more.
 			task.delay(0.5, function()
 				local torso = part(model, "Torso")
 				local st = humanoid:GetState()
@@ -483,23 +483,6 @@ local function ownerRagdoll(model: Model, seed: number, spin: number, launch: Ve
 				if not stuck or model:GetAttribute("Ragdolled") ~= nil or humanoid.Health <= 0 or not model.Parent then
 					return
 				end
-				local motors = {}
-				for _, j in JOINTS do
-					local m = torso and torso:FindFirstChild(j.motor)
-					table.insert(motors, `{j.motor}={if m and m:IsA("Motor6D") then tostring(m.Enabled) else "missing"}`)
-				end
-				local sockets = 0
-				for _, c in if torso then torso:GetChildren() else {} do
-					if c:IsA("BallSocketConstraint") and c.Name == SOCKET and c.Enabled then
-						sockets += 1
-					end
-				end
-				warn("[RAGDOLLDEBUG] still down after getting up:", "state =", st.Name, "torsoUpY =",
-					torso and string.format("%.2f", torso.CFrame.UpVector.Y), "motors:", table.concat(motors, " "),
-					"socketsOn =", sockets, "rootCollide =", root.CanCollide, "rootAnchored =", root.Anchored,
-					"Knocked =", model:GetAttribute("Knocked"), "Carried =", model:GetAttribute("Carried"),
-					"Gripped =", model:GetAttribute("Gripped"), "MState =", model:GetAttribute("MState"),
-					"group =", root.CollisionGroup, "vel =", root.AssemblyLinearVelocity)
 				setLimp(model, false)
 				Ragdoll.standUp(model)
 				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)

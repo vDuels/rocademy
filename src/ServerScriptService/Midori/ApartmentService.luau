@@ -821,7 +821,6 @@ function ApartmentService.init()
 			return
 		end
 		local ok, message, set, gone = ApartmentService.edit(data, shell(ApartmentService.styleOf(data)).rooms, action, a, b)
-		warn(`[APTDEBUG] {player.Name} {tostring(action)} -> {ok} {message}, removed {#gone}`) -- TEMP: "picked up but not in my inventory" (2026-10-31)
 		furnish:FireClient(player, ok, message, action)
 		for uid, it in set do
 			drawItem(player.UserId, data, uid)

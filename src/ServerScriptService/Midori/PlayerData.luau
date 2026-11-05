@@ -48,6 +48,7 @@ local TEMPLATE = {
 
 local profiles: { [Player]: any } = {}
 local loadedHooks: { (Player, any) -> () } = {}
+local hooked: { [Player]: true } = {} -- players whose loadedHooks already ran (a hook added later runs for them in onLoaded)
 local products: { [number]: (player: Player, data: any) -> () } = {}
 
 -- Versioned migrations: migrations[n] upgrades a version n-1 profile to version n.
@@ -253,7 +254,10 @@ function PlayerData.worn(data: any): any
 	return data.Loadout
 end
 
-local function migrate(data: any)
+-- Runs the migrations a save still needs. Call it on the data AS SAVED, before Reconcile: Reconcile fills
+-- missing keys from TEMPLATE, which would stamp a save with no SchemaVersion as current (it skipped every
+-- migration) and hand each migration template defaults instead of what was really saved (audit, 2026-11-05).
+local function upgrade(data: any)
 	local version = data.SchemaVersion or 1
 	while version < SCHEMA_VERSION do
 		version += 1
@@ -263,6 +267,11 @@ local function migrate(data: any)
 		end
 	end
 	data.SchemaVersion = SCHEMA_VERSION
+end
+
+-- upgrade + fitLocker (the load path runs Reconcile between the two).
+local function migrate(data: any)
+	upgrade(data)
 	-- LOCKER_SLOTS / PERK_SLOTS may change: Reconcile never resizes an existing list.
 	PlayerData.fitLocker(data)
 end
@@ -339,9 +348,17 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	end)
 end
 
--- Extra `fn(player, data)` to run when a player's data is ready (register before init).
+-- Extra `fn(player, data)` to run when a player's data is ready. Safe to register any time: players whose
+-- data loaded before this call get it right away (audit, 2026-11-05: services that init after PlayerData.init,
+-- e.g. ApartmentService, could miss an early joiner).
 function PlayerData.onLoaded(fn: (Player, any) -> ())
 	table.insert(loadedHooks, fn)
+	for player in hooked do
+		local data = PlayerData.get(player)
+		if data then
+			task.spawn(fn, player, data)
+		end
+	end
 end
 
 -- `onLoaded(player, data)` runs once a player's data is ready.
@@ -359,10 +376,12 @@ function PlayerData.init(onLoaded: (Player, any) -> ())
 			return
 		end
 		profile:AddUserId(player.UserId)
+		upgrade(profile.Data) -- first: it must see the save as it is (see upgrade)
 		profile:Reconcile()
-		migrate(profile.Data)
+		PlayerData.fitLocker(profile.Data)
 		profile.OnSessionEnd:Connect(function()
 			profiles[player] = nil
+			hooked[player] = nil
 			player:Kick("Your data was loaded on another server, please rejoin.")
 		end)
 		if player.Parent ~= Players then
@@ -372,6 +391,9 @@ function PlayerData.init(onLoaded: (Player, any) -> ())
 		profiles[player] = profile
 		player:SetAttribute("Bux", profile.Data.Bux)
 		onLoaded(player, profile.Data)
+		-- No yield from here to the end of the loop, so a hook registered meanwhile runs exactly once:
+		-- here if it came before this line, else from onLoaded (hooked).
+		hooked[player] = true
 		for _, fn in loadedHooks do
 			task.spawn(fn, player, profile.Data)
 		end
@@ -381,6 +403,7 @@ function PlayerData.init(onLoaded: (Player, any) -> ())
 		task.spawn(load, player)
 	end
 	Players.PlayerRemoving:Connect(function(player)
+		hooked[player] = nil
 		local profile = profiles[player]
 		if profile then
 			profile:EndSession()
