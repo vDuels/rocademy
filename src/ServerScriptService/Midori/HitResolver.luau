@@ -122,6 +122,9 @@ function HitResolver.applyHit(a: any, v: any, move: any, dmgMult: number, now: n
 	end
 	if cutscene then
 		FocusSystem.empty(a) -- Lightshow spends it all
+		-- Spent: anyone else this same hitbox reaches gets a normal hit (they used to pass the attack-start
+		-- snapshot too, take no damage, and have their cutscene refused: the attacker was already in one).
+		a.attackFocusFull = false
 		Fighter.proc(a, "focusCutscene")
 	else
 		FocusSystem.onLanded(a, move, counter)

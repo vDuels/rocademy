@@ -96,10 +96,28 @@ function FocusSystem.baseDamage(a: any, move: any): number
 	return move.damage
 end
 
--- Spacesuit: adrenaline drains Focus, faster the more adrenaline.
-function FocusSystem.tick(f: any, _now: number, dt: number)
+-- Lightshow is armed: its cutscene move (Reentry) is unlocked (a landed Eject, MoveSchema unlocks) and
+-- Focus is full.
+local function lightshowArmed(f: any, now: number): boolean
+	if f.mods.focusCutscene <= 0 or not FocusSystem.full(f) then
+		return false
+	end
+	for id, untilT in f.moveUnlocks do
+		local m = f.style.moves[id]
+		if m and m.cutscene and now <= untilT then
+			return true
+		end
+	end
+	return false
+end
+
+-- Spacesuit: adrenaline drains Focus, faster the more adrenaline. Not while Lightshow is armed (bug,
+-- 2026-11-05: "Lightshow sometimes never procs at 100 Focus"): Reentry can only start once Eject's endlag
+-- is over, and full is checked when it starts, so with high adrenaline the drain over that endlag (+ ping)
+-- took Focus below full after the HUD had shown FULL! and R was already pressed.
+function FocusSystem.tick(f: any, now: number, dt: number)
 	local drain = f.mods.adrFocusDrain
-	if drain > 0 and f.focus > 0 and f.adrenaline > 0 then
+	if drain > 0 and f.focus > 0 and f.adrenaline > 0 and not lightshowArmed(f, now) then
 		f.focus = math.max(0, f.focus - drain * math.min(CombatMath.ratio(f.adrenaline), 1) * dt)
 		Fighter.syncMeters(f)
 	end

@@ -2636,6 +2636,38 @@ function Tests.run(): string
 		assert(near(a.focus, 0), "Lightshow didn't spend Focus: " .. a.focus)
 	end)
 
+	test("Lightshow after Eject: full Focus isn't drained while Reentry is unlocked, so the cutscene still plays", function()
+		-- The live bug (2026-11-05: "Lightshow sometimes never procs at 100 Focus"): Eject tops Focus up to
+		-- full, but Reentry only starts after Eject's endlag, and with lots of adrenaline Spacesuit drained it
+		-- below full meanwhile, so the cutscene never played though the HUD said FULL! when R was pressed.
+		local FocusSystem = Paths.server("FocusSystem")
+		setup()
+		asProdigy("a")
+		a.focus, a.adrenaline = 72, D.ADR_MAX -- full adrenaline: Spacesuit's fastest drain; +40% of 72 = full
+		assert(CombatService.requestAttack(a, "R", clock, false) and a.move.id == "Eject", "close R didn't throw Eject")
+		local eject = a.move
+		run(eject.startup / a.attackSpeed + 0.01)
+		assert(last() and last().r == Result.Hit, "Eject didn't land")
+		assert(FocusSystem.full(a), "Eject didn't fill Focus: " .. a.focus)
+		-- Eject's endlag plus a human reaction: Reentry can't start sooner.
+		run(eject.endlag + 0.3)
+		assert(a.adrenaline > 0 and a.mods.adrFocusDrain > 0, "test needs Spacesuit draining")
+		assert(FocusSystem.full(a), "Spacesuit drained armed Focus to " .. a.focus)
+		rootB.CFrame = CFrame.lookAt(ORIGIN + Vector3.new(0, 0, -12), ORIGIN)
+		assert(CombatService.requestAttack(a, "R", clock, false) and a.move.id == "Reentry", "far R after Eject didn't throw Reentry")
+		run(a.move.startup / a.attackSpeed + 0.001)
+		assert(a.state == State.Rush, "expected Rush, got " .. a.state)
+		rootB.CFrame = CFrame.lookAt(ORIGIN + Vector3.new(0, 0, -3), ORIGIN)
+		run(STEP)
+		assert(last() and last().info.cutscene == true, "Reentry after Eject didn't start the cutscene")
+		-- Not armed (no unlock): Spacesuit drains full Focus as before.
+		setup()
+		asProdigy("a")
+		a.focus, a.adrenaline, a.lastHitTakenAt = F.max, D.ADR_MAX, clock + 10
+		run(0.5)
+		assert(not FocusSystem.full(a), "Spacesuit should still drain full Focus when Reentry isn't unlocked: " .. a.focus)
+	end)
+
 	test("Prodigy R: Eject up close (shove, dash back); Reentry from range ignores the dash, a hit refunds it, neutral", function()
 		-- Close (B at 3 studs): Eject, and landing it gives a spent dash back.
 		setup()
